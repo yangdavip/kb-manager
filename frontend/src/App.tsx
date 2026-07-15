@@ -4,12 +4,14 @@ import {
   FileTextOutlined,
   SearchOutlined,
   SettingOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 import { useState } from 'react';
 import Dashboard from './pages/Dashboard';
 import Files from './pages/Files';
 import Retrieve from './pages/Retrieve';
 import Settings from './pages/Settings';
+import ApiDocs from './pages/ApiDocs';
 
 const { Sider, Content } = Layout;
 
@@ -22,6 +24,7 @@ export default function App() {
     dashboard: <Dashboard />,
     files: <Files />,
     retrieve: <Retrieve />,
+    api: <ApiDocs />,
     settings: <Settings />,
   };
 
@@ -29,6 +32,7 @@ export default function App() {
     { key: 'dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
     { key: 'files', icon: <FileTextOutlined />, label: '文件管理' },
     { key: 'retrieve', icon: <SearchOutlined />, label: '语义检索' },
+    { key: 'api', icon: <ApiOutlined />, label: 'API 文档' },
     { key: 'settings', icon: <SettingOutlined />, label: '系统设置' },
   ];
 
