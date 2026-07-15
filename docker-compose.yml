@@ -1,0 +1,54 @@
+services:
+  # ─── PostgreSQL 16 + pgvector ───
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: kb-manager-db
+    environment:
+      POSTGRES_DB: kb_manager
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Ollama (Embedding 模型服务) ───
+  ollama:
+    image: ollama/ollama:latest
+    container_name: kb-manager-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ─── KB Manager 后端 ───
+  backend:
+    build: .
+    container_name: kb-manager-backend
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres@db:5432/kb_manager
+      EMBEDDING_API_BASE: http://ollama:11434
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-qwen3-embedding:4b}
+    ports:
+      - "8900:8900"
+    volumes:
+      - storage_data:/app/storage
+
+volumes:
+  pg_data:
+  ollama_data:
+  storage_data:
