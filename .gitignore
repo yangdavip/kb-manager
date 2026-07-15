@@ -41,5 +41,8 @@ frontend/.vite/
 # Logs
 *.log
 
+# Test files
+test_*.txt
+
 # Docker
 docker-compose.override.yml
