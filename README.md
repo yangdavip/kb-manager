@@ -5,6 +5,7 @@
 ## 特性
 
 - **多格式文件解析** — TXT / Markdown / PDF / DOCX / HTML / CSV
+- **PDF 深度解析** — 集成 [MinerU](https://github.com/opendatalab/MinerU)，支持版面分析、表格识别、公式提取、OCR（未安装 MinerU 时自动降级到 pypdf）
 - **智能文本分段** — 固定长度 / 滑动窗口 / 段落切分，参数可配置
 - **本地向量化** — 对接 Ollama Embedding API，数据不出本机
 - **pgvector 检索** — 基于 PostgreSQL pgvector 的余弦相似度检索
@@ -56,14 +57,18 @@ ollama pull qwen3-embedding:4b
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 4. 配置环境变量
+# 4. （可选）安装 MinerU 深度 PDF 解析
+#    需 Python 3.10+，安装后自动启用，支持版面分析/表格/公式/OCR
+pip install "mineru[core]"
+
+# 5. 配置环境变量
 cp .env.example .env
 # 编辑 .env 设置数据库和 Ollama 地址
 
-# 5. 启动后端
+# 6. 启动后端
 python -m uvicorn app.main:app --host 0.0.0.0 --port 8900 --reload
 
-# 6. 启动前端（开发模式）
+# 7. 启动前端（开发模式）
 cd frontend && npm install && npm run dev
 # 前端访问 http://localhost:3001
 ```

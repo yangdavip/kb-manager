@@ -10,3 +10,6 @@ python-docx>=1.1.2
 markdown>=3.7
 httpx>=0.28.0
 pgvector>=0.3.6
+
+# 可选：MinerU 深度 PDF 解析（pip install "mineru[core]"）
+# 安装后自动启用，未安装时降级到 pypdf
