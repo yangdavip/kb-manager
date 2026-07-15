@@ -69,6 +69,7 @@ async def retrieve(
             FROM chunks c
             JOIN files f ON f.id = c.file_id
             WHERE c.embedding_half IS NOT NULL
+              AND c.embed_status = 'done'
               AND f.status = 'ready'
     """
     params: dict = {"vec": vec_str}

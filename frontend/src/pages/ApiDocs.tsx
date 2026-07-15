@@ -126,6 +126,23 @@ const ENDPOINTS: ApiEndpoint[] = [
   },
   {
     method: 'GET',
+    path: '/api/v1/files/{file_id}/progress',
+    summary: '获取文件向量化进度（chunk 级别 done/pending/failed 统计）',
+    responseExample: `{
+  "file_id": "a1b2c3d4-...",
+  "status": "processing",
+  "progress_done": 8,
+  "progress_total": 13,
+  "chunks": {
+    "done": 8,
+    "pending": 5,
+    "failed": 0,
+    "total": 13
+  }
+}`,
+  },
+  {
+    method: 'GET',
     path: '/api/v1/files/{file_id}/chunks',
     summary: '获取文件的分段列表（含 token 数）',
     params: [

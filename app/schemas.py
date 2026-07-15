@@ -14,6 +14,8 @@ class FileResponse(BaseModel):
     content_hash: str | None = None
     chunk_count: int
     status: str
+    progress_done: int = 0
+    progress_total: int = 0
     error_message: str | None = None
     created_at: datetime
     updated_at: datetime
@@ -35,6 +37,7 @@ class ChunkResponse(BaseModel):
     char_count: int
     char_offset: int
     token_count: int = 0
+    embed_status: str = "pending"
     metadata: dict | None = None
     created_at: datetime
 

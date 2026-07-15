@@ -34,6 +34,8 @@ class File(Base):
     content_hash = Column(String(64), nullable=True, index=True)
     chunk_count = Column(Integer, default=0)
     status = Column(String(20), default="pending")  # pending/processing/ready/failed
+    progress_done = Column(Integer, default=0)  # 已向量化的 chunk 数
+    progress_total = Column(Integer, default=0)  # 总 chunk 数
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -56,6 +58,7 @@ class Chunk(Base):
     char_offset = Column(Integer, nullable=False, default=0)
     chunk_metadata = Column(JSONB, default=dict)
     token_count = Column(Integer, nullable=False, default=0)
+    embed_status = Column(String(20), default="pending")  # pending/done/failed
     # pgvector 向量列 — 使用 raw SQL 创建，此处仅声明用于 ORM 映射
     # embedding 列通过 init_db 中的 SQL 创建: vector(2560)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -88,6 +91,24 @@ async def init_db():
         # 添加 token_count 列（如果不存在）
         await conn.execute(text(
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS token_count INTEGER DEFAULT 0"
+        ))
+        # 添加 embed_status 列（chunk 级向量化状态）
+        await conn.execute(text(
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embed_status VARCHAR(20) DEFAULT 'pending'"
+        ))
+        # 添加进度列到 files 表
+        await conn.execute(text(
+            "ALTER TABLE files ADD COLUMN IF NOT EXISTS progress_done INTEGER DEFAULT 0"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE files ADD COLUMN IF NOT EXISTS progress_total INTEGER DEFAULT 0"
+        ))
+        # 给已有 chunk 补 embed_status
+        await conn.execute(text(
+            "UPDATE chunks SET embed_status = 'done' WHERE embed_status = 'pending' AND embedding IS NOT NULL"
+        ))
+        await conn.execute(text(
+            "UPDATE files SET progress_done = progress_total WHERE progress_done = 0 AND status = 'ready'"
         ))
         # 添加 embedding 向量列（全精度，保留原始向量）
         await conn.execute(text(

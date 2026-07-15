@@ -20,6 +20,8 @@ export const deleteFile = (fileId: string) => api.delete(`/files/${fileId}`);
 
 export const reprocessFile = (fileId: string) => api.post(`/files/${fileId}/reprocess`);
 
+export const getProgress = (fileId: string) => api.get(`/files/${fileId}/progress`);
+
 export const getChunks = (fileId: string, params?: { skip?: number; limit?: number }) =>
   api.get(`/files/${fileId}/chunks`, { params });
 

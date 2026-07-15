@@ -168,13 +168,22 @@ async def reprocess_file(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    """重新分段+向量化"""
+    """重新向量化（断点续传：跳过已完成的 chunk）
+    
+    如果文件之前部分成功，只重新处理失败的/未处理的 chunk。
+    如果需要完全重新分段，先删除文件再重新上传。
+    """
     result = await db.execute(select(File).where(File.id == file_id))
     file_record = result.scalar_one_or_none()
     if not file_record:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=404, content={"error": "文件不存在"})
 
+    # 重置 failed chunk 为 pending，保留 done 的
+    await db.execute(
+        text("UPDATE chunks SET embed_status = 'pending' WHERE file_id = :fid AND embed_status = 'failed'"),
+        {"fid": file_id},
+    )
     file_record.status = "pending"
     file_record.error_message = None
     await db.commit()
@@ -184,8 +193,45 @@ async def reprocess_file(
     return ReprocessResponse(
         file_id=file_record.id,
         status="pending",
-        message="已加入处理队列",
+        message="已加入处理队列（断点续传）",
     )
+
+
+@router.get("/{file_id}/progress")
+async def get_progress(file_id: str, db: AsyncSession = Depends(get_db)):
+    """获取文件向量化进度"""
+    result = await db.execute(select(File).where(File.id == file_id))
+    file_record = result.scalar_one_or_none()
+    if not file_record:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=404, content={"error": "文件不存在"})
+
+    # 统计 chunk 级别状态
+    stats = await db.execute(
+        text(
+            "SELECT "
+            "  COUNT(*) FILTER (WHERE embed_status = 'done') AS done, "
+            "  COUNT(*) FILTER (WHERE embed_status = 'pending') AS pending, "
+            "  COUNT(*) FILTER (WHERE embed_status = 'failed') AS failed, "
+            "  COUNT(*) AS total "
+            "FROM chunks WHERE file_id = :fid"
+        ),
+        {"fid": file_id},
+    )
+    row = stats.fetchone()
+
+    return {
+        "file_id": file_id,
+        "status": file_record.status,
+        "progress_done": file_record.progress_done,
+        "progress_total": file_record.progress_total,
+        "chunks": {
+            "done": row.done if row else 0,
+            "pending": row.pending if row else 0,
+            "failed": row.failed if row else 0,
+            "total": row.total if row else 0,
+        },
+    }
 
 
 @router.get("/{file_id}/chunks", response_model=ChunkListResponse)

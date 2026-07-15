@@ -32,6 +32,8 @@ interface FileItem {
   file_size: number;
   chunk_count: number;
   status: string;
+  progress_done: number;
+  progress_total: number;
   error_message: string | null;
   created_at: string;
   updated_at: string;
@@ -42,6 +44,7 @@ interface ChunkItem {
   chunk_index: number;
   content: string;
   token_count: number;
+  embed_status: string;
   metadata: Record<string, unknown>;
 }
 
@@ -139,6 +142,18 @@ export default function Files() {
     { title: '分段数', dataIndex: 'chunk_count', width: 70 },
     { title: '状态', dataIndex: 'status', width: 100, render: statusTag },
     {
+      title: '进度',
+      width: 120,
+      render: (_: unknown, record: FileItem) => {
+        if (record.status === 'ready' || record.status === 'failed') return null;
+        const total = record.progress_total || 0;
+        const done = record.progress_done || 0;
+        if (total === 0) return null;
+        const pct = Math.round((done / total) * 100);
+        return <Progress percent={pct} size="small" format={() => `${done}/${total}`} />;
+      },
+    },
+    {
       title: '错误',
       dataIndex: 'error_message',
       width: 200,
@@ -220,6 +235,15 @@ export default function Files() {
             { title: '#', dataIndex: 'chunk_index', width: 50 },
             { title: '内容', dataIndex: 'content', render: (v: string) => <Paragraph ellipsis={{ rows: 3 }}>{v}</Paragraph> },
             { title: 'Tokens', dataIndex: 'token_count', width: 80 },
+            {
+              title: '状态',
+              dataIndex: 'embed_status',
+              width: 80,
+              render: (v: string) => {
+                const colors: Record<string, string> = { done: 'success', pending: 'default', failed: 'error' };
+                return <Tag color={colors[v] || 'default'}>{v}</Tag>;
+              },
+            },
           ]}
         />
       </Modal>
