@@ -84,15 +84,23 @@ async def init_db():
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         # 创建所有表
         await conn.run_sync(Base.metadata.create_all)
-        # 添加 embedding 向量列（如果不存在）
+        # 添加 embedding 向量列（全精度，保留原始向量）
         await conn.execute(text(
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding vector(2560)"
         ))
-        # HNSW 索引限制 2000 维，使用 IVFFlat 索引（支持高维）
-        # 注意：IVFFlat 需要有数据才能建索引，这里先建，插入数据后需 REINDEX
-        # 对于小数据集（<10万条），暴力搜索也很快，先不建索引
-        # 如需 IVFFlat 索引，可在数据导入后手动执行：
-        # CREATE INDEX idx_chunks_embedding_ivf ON chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+        # 添加 halfvec 列（半精度，用于 HNSW 索引检索）
+        # pgvector 0.8.0 HNSW 限制 2000 维，halfvec 限制 4000 维，2560 OK
+        await conn.execute(text(
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding_half halfvec(2560)"
+        ))
+        # 创建 HNSW 索引（halfvec + cosine）
+        # m=16: 每个节点最大连接数（推荐 16-48）
+        # ef_construction=64: 构建时候选列表大小（推荐 64-256）
+        await conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw "
+            "ON chunks USING hnsw (embedding_half halfvec_cosine_ops) "
+            "WITH (m = 16, ef_construction = 64)"
+        ))
         # 插入默认配置
         await conn.execute(text(
             "INSERT INTO app_config (key, value, description) VALUES "

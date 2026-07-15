@@ -118,11 +118,17 @@ async def process_file(
         texts = [c.content for c in chunks]
         embeddings = await get_embeddings_batch(api_base, model, texts, timeout, batch_size)
 
-        # 6. 写入向量（raw SQL — SQLAlchemy 不原生支持 vector 类型写入）
+        # 6. 批量写入向量（全精度 + 半精度同步写入）
+        #    embedding: 原始 vector(2560)，用于精确计算
+        #    embedding_half: halfvec(2560)，HNSW 索引检索用
         for chunk_rec, embedding in zip(chunk_records, embeddings):
             vec_str = "[" + ",".join(str(v) for v in embedding) + "]"
             await db.execute(
-                text("UPDATE chunks SET embedding = :vec WHERE id = :cid"),
+                text(
+                    "UPDATE chunks SET embedding = CAST(:vec AS vector(2560)), "
+                    "embedding_half = CAST(:vec AS halfvec(2560)) "
+                    "WHERE id = :cid"
+                ),
                 {"vec": vec_str, "cid": str(chunk_rec.id)},
             )
 

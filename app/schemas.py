@@ -102,6 +102,8 @@ class StatsResponse(BaseModel):
     failed_files: int
     db_size_mb: float
     embedding_dim: int
+    vector_index: list[dict] = []
+    hnsw_config: dict = {}
 
 
 # ─── Reprocess ───

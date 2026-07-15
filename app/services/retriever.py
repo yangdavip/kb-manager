@@ -30,7 +30,13 @@ async def retrieve(
     kb_id: UUID | None = None,
     file_id: UUID | None = None,
 ) -> list[dict]:
-    """语义检索
+    """语义检索 — 使用 halfvec + HNSW 索引加速
+
+    检索流程：
+    1. 调用 Embedding API 获取查询向量
+    2. 设置 hnsw.ef_search 控制召回率（默认 40，设为 top_k*4 保证召回）
+    3. 用 halfvec 列走 HNSW 索引检索（近似最近邻）
+    4. 用全精度 embedding 列重排（精排，提升精度）
 
     Returns:
         list of dict: [{chunk_id, file_id, filename, chunk_index, content, score, metadata}]
@@ -46,14 +52,24 @@ async def retrieve(
 
     vec_str = "[" + ",".join(str(v) for v in query_vec) + "]"
 
-    # 2. 构建 SQL — pgvector 相似度检索
+    # 2. 设置 HNSW ef_search（越大召回越高，但越慢）
+    #    取 max(40, top_k * 4) 保证足够候选
+    ef_search = max(40, top_k * 4)
+    await db.execute(text(f"SET LOCAL hnsw.ef_search = {ef_search}"))
+
+    # 3. 构建 SQL — HNSW 索引检索 + 精排
+    #    用 embedding_half 走 HNSW 索引获取候选（ORDER BY...LIMIT）
+    #    用全精度 embedding 重排计算最终 score
+    #    使用 CAST(:vec AS halfvec(2560)) 避免与 SQLAlchemy 参数绑定冲突
     sql = f"""
-        SELECT c.id, c.file_id, f.filename, c.chunk_index, c.content, c.chunk_metadata,
-               (c.embedding {op} :vec)::float AS score
-        FROM chunks c
-        JOIN files f ON f.id = c.file_id
-        WHERE c.embedding IS NOT NULL
-          AND f.status = 'ready'
+        WITH candidates AS (
+            SELECT c.id, c.file_id, f.filename, c.chunk_index, c.content, c.chunk_metadata,
+                   c.embedding,
+                   (c.embedding_half {op} CAST(:vec AS halfvec(2560)))::float AS approx_score
+            FROM chunks c
+            JOIN files f ON f.id = c.file_id
+            WHERE c.embedding_half IS NOT NULL
+              AND f.status = 'ready'
     """
     params: dict = {"vec": vec_str}
 
@@ -65,10 +81,19 @@ async def retrieve(
         sql += " AND f.file_id = :file_id"
         params["file_id"] = str(file_id)
 
-    # 余弦距离: score 越小越相似 → 转换为相似度 (1 - distance)
-    # l2 距离: score 越小越相似
-    # inner_product: score 越负越相似 → 取负值
-    sql += f" ORDER BY c.embedding {op} :vec LIMIT :top_k"
+    # HNSW 近似检索取候选（取 3 倍 top_k 候选用于精排）
+    candidate_k = min(top_k * 3, 100)
+    sql += f"""
+            ORDER BY c.embedding_half {op} CAST(:vec AS halfvec(2560))
+            LIMIT :candidate_k
+        )
+        SELECT id, file_id, filename, chunk_index, content, chunk_metadata,
+               (embedding {op} CAST(:vec AS vector(2560)))::float AS exact_score
+        FROM candidates
+        ORDER BY exact_score
+        LIMIT :top_k
+    """
+    params["candidate_k"] = candidate_k
     params["top_k"] = top_k
 
     result = await db.execute(text(sql), params)
@@ -76,7 +101,7 @@ async def retrieve(
 
     results = []
     for row in rows:
-        score = float(row.score)
+        score = float(row.exact_score)
         # 对于余弦距离，转换为相似度分数 (0~1)
         if distance_metric == "cosine":
             similarity = 1.0 - score

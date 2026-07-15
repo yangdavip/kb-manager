@@ -30,6 +30,26 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
     except Exception:
         dim = 2560
 
+    # 索引信息
+    index_info = []
+    try:
+        rows = await db.execute(text(
+            "SELECT indexname, indexdef FROM pg_indexes "
+            "WHERE tablename = 'chunks' AND indexname LIKE '%hnsw%' OR indexname LIKE '%ivf%'"
+        ))
+        for r in rows:
+            index_info.append({"name": r[0], "def": r[1]})
+    except Exception:
+        pass
+
+    # HNSW 配置
+    hnsw_config = {}
+    try:
+        ef_search = (await db.execute(text("SHOW hnsw.ef_search"))).scalar()
+        hnsw_config["ef_search"] = ef_search
+    except Exception:
+        pass
+
     return StatsResponse(
         total_files=total_files,
         total_chunks=total_chunks,
@@ -38,4 +58,6 @@ async def get_stats(db: AsyncSession = Depends(get_db)):
         failed_files=failed_files,
         db_size_mb=db_size_mb,
         embedding_dim=dim,
+        vector_index=index_info,
+        hnsw_config=hnsw_config,
     )
