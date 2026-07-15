@@ -11,6 +11,8 @@ interface Stats {
   failed_files: number;
   db_size_mb: number;
   embedding_dim: number;
+  vector_index?: { name: string; def: string }[];
+  hnsw_config?: Record<string, string>;
 }
 
 interface FileItem {
@@ -141,13 +143,17 @@ export default function Dashboard() {
 
       {stats && (
         <Card title="系统信息" style={{ marginTop: 16 }}>
-          <p>Embedding 维度: <strong>{stats.embedding_dim}</strong></p>
-          <p>向量索引: <Tag>暴力搜索 (无索引)</Tag></p>
-          <Progress
-            percent={stats.total_files > 0 ? Math.round((stats.ready_files / stats.total_files) * 100) : 0}
-            status="active"
-            format={(p) => `${p}% 就绪`}
-          />
+          <Row gutter={16}>
+            <Col span={6}><p>Embedding 维度: <strong>{stats.embedding_dim}</strong></p></Col>
+            <Col span={6}><p>向量索引: {stats.vector_index && stats.vector_index.length > 0 ? <Tag color="success">HNSW</Tag> : <Tag>无</Tag>}</p></Col>
+            <Col span={12}>
+              <Progress
+                percent={stats.total_files > 0 ? Math.round((stats.ready_files / stats.total_files) * 100) : 0}
+                status="active"
+                format={(p) => `${p}% 就绪`}
+              />
+            </Col>
+          </Row>
         </Card>
       )}
     </div>
