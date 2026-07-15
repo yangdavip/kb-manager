@@ -46,3 +46,4 @@ test_*.txt
 
 # Docker
 docker-compose.override.yml
+blog-post.md
