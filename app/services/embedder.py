@@ -108,6 +108,7 @@ async def process_file(
                 content=c.content,
                 char_count=c.char_count,
                 char_offset=c.char_offset,
+                token_count=c.token_count,
                 metadata={},
             )
             db.add(chunk)

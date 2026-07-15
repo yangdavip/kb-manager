@@ -55,6 +55,7 @@ class Chunk(Base):
     char_count = Column(Integer, nullable=False, default=0)
     char_offset = Column(Integer, nullable=False, default=0)
     chunk_metadata = Column(JSONB, default=dict)
+    token_count = Column(Integer, nullable=False, default=0)
     # pgvector 向量列 — 使用 raw SQL 创建，此处仅声明用于 ORM 映射
     # embedding 列通过 init_db 中的 SQL 创建: vector(2560)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -84,6 +85,10 @@ async def init_db():
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         # 创建所有表
         await conn.run_sync(Base.metadata.create_all)
+        # 添加 token_count 列（如果不存在）
+        await conn.execute(text(
+            "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS token_count INTEGER DEFAULT 0"
+        ))
         # 添加 embedding 向量列（全精度，保留原始向量）
         await conn.execute(text(
             "ALTER TABLE chunks ADD COLUMN IF NOT EXISTS embedding vector(2560)"

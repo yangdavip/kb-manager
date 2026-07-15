@@ -1,5 +1,24 @@
 """文本分段引擎"""
+import re
 from dataclasses import dataclass
+
+
+def estimate_tokens(text: str) -> int:
+    """估算 token 数量
+    
+    混合估算策略：
+    - 中文字符：约 1.5 token/字
+    - 英文：约 4 字符/token
+    - 数字和标点：约 3 字符/token
+    """
+    if not text:
+        return 0
+    # 统计中文字符数
+    cjk_count = len(re.findall(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]', text))
+    # 非中文字符数
+    other_count = len(text) - cjk_count
+    # 估算：中文 1.5 token/字，英文/其他约 4 字符/token
+    return int(cjk_count * 1.5 + other_count / 4) + 1
 
 
 @dataclass
@@ -7,6 +26,7 @@ class ChunkResult:
     content: str
     char_offset: int
     char_count: int
+    token_count: int = 0
 
 
 def chunk_text(
@@ -47,6 +67,7 @@ def _chunk_fixed(text: str, size: int, overlap: int) -> list[ChunkResult]:
                 content=content,
                 char_offset=start,
                 char_count=len(content),
+                token_count=estimate_tokens(content),
             ))
         if end >= len(text):
             break
@@ -80,6 +101,7 @@ def _chunk_by_paragraph(text: str, size: int, overlap: int) -> list[ChunkResult]
                     content=current,
                     char_offset=current_start,
                     char_count=len(current),
+                    token_count=estimate_tokens(content),
                 ))
             # 超长段落走固定切分
             if len(para_text) > size:
@@ -98,6 +120,7 @@ def _chunk_by_paragraph(text: str, size: int, overlap: int) -> list[ChunkResult]
             content=current,
             char_offset=current_start,
             char_count=len(current),
+            token_count=estimate_tokens(content),
         ))
     return chunks
 
@@ -110,10 +133,12 @@ def _chunk_recursive(text: str, size: int, overlap: int) -> list[ChunkResult]:
     def _split(t: str, start_offset: int):
         if len(t) <= size:
             if t.strip():
+                cleaned = t.strip()
                 chunks.append(ChunkResult(
-                    content=t.strip(),
+                    content=cleaned,
                     char_offset=start_offset,
-                    char_count=len(t.strip()),
+                    char_count=len(cleaned),
+                    token_count=estimate_tokens(cleaned),
                 ))
             return
 
@@ -132,10 +157,12 @@ def _chunk_recursive(text: str, size: int, overlap: int) -> list[ChunkResult]:
                 part = t[:idx + len(sep)]
                 rest = t[idx + len(sep):]
                 if part.strip():
+                    cleaned = part.strip()
                     chunks.append(ChunkResult(
-                        content=part.strip(),
+                        content=cleaned,
                         char_offset=start_offset,
-                        char_count=len(part.strip()),
+                        char_count=len(cleaned),
+                        token_count=estimate_tokens(cleaned),
                     ))
                 _split(rest, start_offset + idx + len(sep))
                 return

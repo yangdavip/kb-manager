@@ -34,6 +34,7 @@ class ChunkResponse(BaseModel):
     content: str
     char_count: int
     char_offset: int
+    token_count: int = 0
     metadata: dict | None = None
     created_at: datetime
 
